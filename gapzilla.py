@@ -9,8 +9,9 @@ import multiprocessing as mp
 
 import RNA
 import yaml
-from Bio import GenBank
+from Bio import GenBank, SeqIO
 from Bio.Seq import Seq
+from Bio.SeqFeature import SeqFeature, FeatureLocation
 from functools import wraps, reduce, partialmethod
 from tqdm import tqdm
 
@@ -144,22 +145,6 @@ def modify_first_line(input_path, output_path):
 
     with open(output_path, "w") as file:
         file.writelines(lines)
-
-
-def insert_before_origin(file_path, insert_strings):
-    with open(file_path, "r") as file:
-        content = file.read()
-
-    origin_index = content.find("ORIGIN")
-    if origin_index == -1:
-        return
-
-    insert_content = "\n".join(insert_strings) + "\n"
-
-    modified_content = content[:origin_index] + insert_content + content[origin_index:]
-
-    with open(file_path, "w") as file:
-        file.write(modified_content)
 
 
 def split_sequence_(sequence, window_size=10e6, overlap=10e3):
@@ -324,35 +309,56 @@ def filter_intervals_by_flanking_legth(intervals, min_flanks_length, max_flanks_
     return filtered_intervals
 
 
-def create_uncovered_intervals_str(intervals):
+def create_uncovered_intervals_feature(intervals):
 
     return [
-        f"     gap             {interval.interval[0]}..{interval.interval[1]}"
+        SeqFeature(
+            FeatureLocation(interval.interval[0], interval.interval[1], strand=1),
+            type="gap",
+        )
         for interval in intervals
     ]
 
 
-def create_hairpins_str(hairpins, type_of_hairpin, complement=False):
+def create_hairpins_feature(hairpins, type_of_hairpin, complement=None):
     if complement:
-
-        output_str_list = [
-            f"     {type_of_hairpin}             complement({hairpin[0]}..{hairpin[1]})\n"
-            + f"                     /sequence={hairpin[2]}\n"
-            + f"                     /structure={hairpin[3]}\n"
-            + f"                     /mfe={hairpin[4]}"
-            for hairpin in hairpins
-        ]
-
+        strand = -1
     else:
-        output_str_list = [
-            f"     {type_of_hairpin}             {hairpin[0]}..{hairpin[1]}\n"
-            + f"                     /sequence={hairpin[2]}\n"
-            + f"                     /structure={hairpin[3]}\n"
-            + f"                     /mfe={hairpin[4]}"
-            for hairpin in hairpins
-        ]
+        strand = 1
 
-    return output_str_list
+    hairpins_feature_list = []
+
+    for hairpin in hairpins:
+        qual = {
+            "label": type_of_hairpin,
+            "sequence": hairpin[2],
+            "structure": hairpin[3],
+            "mfe": hairpin[4],
+        }
+
+        hairpins_feature_list.append(
+            SeqFeature(
+                FeatureLocation(hairpin[0], hairpin[1], strand=strand),
+                qualifiers=qual,
+                type="stem-loop",
+            )
+        )
+
+    return hairpins_feature_list
+
+
+def create_insertion_sites_feature(insertion_sites):
+
+    return [
+        SeqFeature(
+            FeatureLocation(
+                insertion_site.interval[0], insertion_site.interval[1], strand=1
+            ),
+            qualifiers={"score": insertion_site.score},
+            type="misc_feature",
+        )
+        for insertion_site in insertion_sites
+    ]
 
 
 def find_insertion_sites(gaps, coverages):
@@ -425,22 +431,6 @@ def find_overlapping_insertion_sites(insertion_sites):
                 result.append(InsertionSite(overlap_start, overlap_end, overlap_score))
 
     return result
-
-
-def create_insertion_sites_str(insertion_sites):
-
-    output_str_list = [
-        f"     ins{insertion_site.score}            {insertion_site.interval[0]}..{insertion_site.interval[1]}"
-        for insertion_site in insertion_sites
-    ]
-
-    return output_str_list
-
-
-with open("config.yaml", "r") as file:
-    config = yaml.safe_load(file)
-
-BAR_FORMAT = config["bar_format"]
 
 
 def find_hairpins(sequence, structure):
@@ -709,7 +699,6 @@ def main():
         path_to_gbk, output_file_name, path_to_output_folder, suffix_file_name
     )
 
-
     min_gap_length = args.min_gap_length
     max_gap_length = args.max_gap_length
 
@@ -726,16 +715,16 @@ def main():
 
     logging.info(f"Writing output to: {path_to_output}")
 
-    record_list = []
     feature_list = []
     intervaled_features_list = []
 
     # Try opening file as proper gbk
     logging.info("Reading gbk...")
     try:
-        with open(path_to_gbk) as handle:
-            for record in GenBank.parse(handle):
-                record_list.append(record)
+        record = SeqIO.read(
+            path_to_gbk,
+            "genbank",
+        )
 
         shutil.copy(path_to_gbk, path_to_output)
 
@@ -743,12 +732,12 @@ def main():
     except ValueError:
         logging.info("Trying to fix possible prokka LOCUS input error...")
         modify_first_line(path_to_gbk, path_to_output)
+        record = SeqIO.read(
+            path_to_output,
+            "genbank",
+        )
 
-        with open(path_to_output) as handle:
-            for record in GenBank.parse(handle):
-                record_list.append(record)
-
-    for feature in record_list[0].features:
+    for feature in record.features:
         feature_list.append(feature)
 
     for feature in tqdm(
@@ -757,14 +746,7 @@ def main():
         disable=logging.root.level > logging.INFO,
         bar_format=BAR_FORMAT,
     ):
-        location = (
-            feature.location.replace("complement(", "")
-            .replace(">", "")
-            .replace("<", "")
-            .replace(")", "")
-            .split("..")  # get length for normal and complement instances
-        )
-        start, stop = int(location[0]), int(location[1])
+        start, stop = int(feature.location.start), int(feature.location.end)
         feature.length = stop - start
 
         intervaled_features_list.append(IntervaledFeature([start, stop], feature))
@@ -782,9 +764,7 @@ def main():
         filtered_intervals, min_flanks_length, max_flanks_length
     )
 
-    output_intervals_strings = create_uncovered_intervals_str(filtered_intervals)
-
-    sequence = Seq(record_list[0].sequence)
+    sequence = Seq(record.seq)
 
     logging.info("Annotating RNA hairpins...")
     logging.info("This might take a while...")
@@ -815,17 +795,23 @@ def main():
     )
 
     logging.info("Writing output...")
-    insert_before_origin(
-        path_to_output,
-        (
-            output_intervals_strings
-            + create_hairpins_str(top_hairpins_f, "hpt")
-            + create_hairpins_str(all_hairpins_f, "hpa")
-            + create_hairpins_str(top_hairpins_r, "hpt", complement=True)
-            + create_hairpins_str(all_hairpins_r, "hpa", complement=True)
-            + create_insertion_sites_str(insertion_sites_overlapping)
-        ),
+
+    print(len(record.features))
+
+    record.features = (
+        record.features
+        + create_uncovered_intervals_feature(filtered_intervals)
+        + create_hairpins_feature(top_hairpins_f, "hpt")
+        + create_hairpins_feature(all_hairpins_f, "hpa")
+        + create_hairpins_feature(top_hairpins_r, "hpt", complement=True)
+        + create_hairpins_feature(all_hairpins_r, "hpa", complement=True)
+        + create_insertion_sites_feature(insertion_sites_overlapping)
     )
+
+    print(len(record.features))
+
+    with open(path_to_output, "w") as handle:
+        SeqIO.write(record, handle, "genbank")
 
     logging.info("Finished!")
 
