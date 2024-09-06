@@ -12,7 +12,7 @@ min_flanks_length: 700
 max_flanks_length: 10000000
 
 mfe_threshold_hpt: -15
-mfe_threshold_hpa: -1
+mfe_threshold_hpa: -7
 
 bar_format: "{desc:<50.100} {percentage:3.0f}% |{bar:100}{r_bar}"
 
