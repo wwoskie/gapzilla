@@ -43,7 +43,9 @@ MAX_FLANKS_LENGTH = config["max_flanks_length"]
 MFE_THRESHOLD_HPT = config["mfe_threshold_hpt"]
 MFE_THRESHOLD_HPA = config["mfe_threshold_hpa"]
 
-HAIRPIN_SIMILARITY_THRES = config["hairpin_similaruty_thres"]
+BORDER_SHIFT = config["border_shift"]
+
+HAIRPIN_SIMILARITY_THRES = config["hairpin_similarity_thres"]
 
 BAR_FORMAT = config["bar_format"]
 
@@ -139,9 +141,17 @@ def main():
     parser.add_argument(
         "--hairpin_similarity_thres",
         "-similarity",
-        type=int,
+        type=float,
         default=HAIRPIN_SIMILARITY_THRES,
         help="Threshold for filtering similar hairpins. Lower thres -> more hairpins dropped",
+    )
+
+    parser.add_argument(
+        "--border_shift",
+        "-bs",
+        type=int,
+        default=BORDER_SHIFT,
+        help="Distance to the right and to the left from gap to search for haiirpins",
     )
 
     parser.add_argument(
@@ -206,6 +216,8 @@ def main():
 
         hairpin_similarity_thres = config["hairpin_similarity_thres"]
 
+        border_shift = config["border_shift"]
+
         num_processes = config["num_processes"] or mp.cpu_count()
 
         verbosity = config["verbosity"]
@@ -232,6 +244,7 @@ def main():
         mfe_threshold_hpt = args.mfe_threshold_hpt
 
         hairpin_similarity_thres = args.hairpin_similarity_thres
+        border_shift = args.border_shift
 
         verbosity = args.verbosity
         setup_logging(args.verbosity)
@@ -300,7 +313,9 @@ def main():
     logging.info("Annotating RNA hairpins...")
     logging.info("This might take a while...")
 
-    subsequences = split_sequence(str(sequence.transcribe()), filtered_intervals)
+    subsequences = split_sequence(
+        str(sequence.transcribe()), filtered_intervals, border_shift
+    )
 
     logging.info(f"Total # of gaps: {len(subsequences)}")
     logging.info("Processing forward strand...")
@@ -315,7 +330,9 @@ def main():
 
     logging.info("Processing reverse strand...")
 
-    subsequences = split_sequence(str(sequence.complement_rna()), filtered_intervals)
+    subsequences = split_sequence(
+        str(sequence.complement_rna()), filtered_intervals, border_shift
+    )
 
     top_hairpins_r, all_hairpins_r = find_hairpins_in_subseqs(
         subsequences,
