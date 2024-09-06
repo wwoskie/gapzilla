@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import logging
 import os
 import re
 import shutil
@@ -10,8 +11,9 @@ import RNA
 import yaml
 from Bio import GenBank
 from Bio.Seq import Seq
-from functools import wraps, reduce
+from functools import wraps, reduce, partialmethod
 from tqdm import tqdm
+
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -21,7 +23,6 @@ OUTPUT_FILE_NAME = config["output_file_name"]
 PATH_TO_OUTPUT_FOLDER = config["path_to_output_folder"]
 SUFFIX_FILE_NAME = config["suffix_file_name"]
 
-BATCH_SIZE = config["batch_size"]
 OVERLAP_SIZE = config["overlap_size"]
 
 MIN_GAP_LENGTH = config["min_gap_length"]
@@ -36,6 +37,8 @@ BAR_FORMAT = config["bar_format"]
 NUM_PROCESSES = (
     config["num_processes"] or mp.cpu_count()
 )  # take maximum available if not specified
+
+VERBOSITY = config["verbosity"]
 
 
 class IntervaledFeature:
@@ -68,6 +71,19 @@ class InsertionSite:
         return f"InsertionSite(interval={self.interval}, score={self.score})"
 
 
+def setup_logging(verbosity):
+    log_format = "%(message)s"
+    if verbosity == 0:
+        level = logging.ERROR
+    elif verbosity == 1:
+        level = logging.INFO
+    elif verbosity >= 2:
+        level = logging.DEBUG
+    else:
+        level = logging.WARNING  # Default
+    logging.basicConfig(level=level, format=log_format)
+
+
 def timeit(func):
     @wraps(func)
     def timeit_wrapper(*args, **kwargs):
@@ -75,7 +91,7 @@ def timeit(func):
         result = func(*args, **kwargs)
         end_time = datetime.datetime.now()
         total_time = str(end_time - start_time).split(".")[0]
-        print(f"Total execution time {total_time}")
+        logging.info(f"Total execution time {total_time}")
         return result
 
     return timeit_wrapper
@@ -179,7 +195,10 @@ def merge_intervals(intervaled_features):
     merged_intervaled_features = []
 
     for intervaled_feature in tqdm(
-        sorted_intervaled_features, desc="Merging intervals...", bar_format=BAR_FORMAT
+        sorted_intervaled_features,
+        desc="Merging intervals...",
+        disable=logging.root.level > logging.INFO,
+        bar_format=BAR_FORMAT,
     ):
         if (
             not merged_intervaled_features
@@ -219,6 +238,7 @@ def find_uncovered_intervals(interval, intervaled_features):
 
     for feature in tqdm(
         intervaled_features,
+        disable=logging.root.level > logging.INFO,
         desc="Finding uncovered intervals...",
         bar_format=BAR_FORMAT,
     ):
@@ -264,7 +284,10 @@ def find_uncovered_intervals(interval, intervaled_features):
 def filter_intervals_by_length(intervals, min_length, max_length):
     filtered_intervals = []
     for intervaled_gap in tqdm(
-        intervals, desc="Filtering intervals by length...", bar_format=BAR_FORMAT
+        intervals,
+        desc="Filtering intervals by length...",
+        disable=logging.root.level > logging.INFO,
+        bar_format=BAR_FORMAT,
     ):
 
         if intervaled_gap.interval[0] and intervaled_gap.interval[1]:
@@ -281,6 +304,7 @@ def filter_intervals_by_flanking_legth(intervals, min_flanks_length, max_flanks_
     filtered_intervals = []
     for intervaled_gap in tqdm(
         intervals,
+        disable=logging.root.level > logging.INFO,
         desc="Filtering intervals by flanking genes...",
         bar_format=BAR_FORMAT,
     ):
@@ -453,7 +477,12 @@ def merge_similar_hairpins(
     merged_hairpins = []
     hairpins.sort(key=lambda x: (x[0], x[1]))  # Sort by start and end
 
-    for hairpin in tqdm(hairpins, desc=message, bar_format=BAR_FORMAT):
+    for hairpin in tqdm(
+        hairpins,
+        desc=message,
+        disable=logging.root.level > logging.INFO,
+        bar_format=BAR_FORMAT,
+    ):
         start, end, seq, struct, mfe = hairpin
         overlap_found = False
         for merged in merged_hairpins[-backward_search_thres:]:
@@ -489,7 +518,6 @@ def find_top_hairpins(
     step_size=25,
     mfe_threshold_hpt=-15.0,
     mfe_threshold_hpa=-1,
-    batch_num=None,
     num_processes=mp.cpu_count(),
 ):
 
@@ -522,7 +550,10 @@ def find_hairpins_in_subseqs(
 
     top_hairpins, all_hairpins = [], []
     for subsequence in tqdm(
-        subsequences, desc="Processing subsequences...", bar_format=BAR_FORMAT
+        subsequences,
+        desc="Processing subsequences...",
+        disable=logging.root.level > logging.INFO,
+        bar_format=BAR_FORMAT,
     ):
 
         sequence_ = subsequences[subsequence]["seq"]
@@ -603,14 +634,6 @@ def main():
     )
 
     parser.add_argument(
-        "--batch_size",
-        "-b",
-        type=int,
-        default=BATCH_SIZE,
-        help="Size of genome batches for hairpin calculations",
-    )
-
-    parser.add_argument(
         "--min_gap_length",
         "-min_gap",
         type=int,
@@ -665,6 +688,14 @@ def main():
         help="Maximum number of threads to use. Takes all available cores, if not specified",
     )
 
+    parser.add_argument(
+        "--verbosity",
+        "-v",
+        type=int,
+        default=VERBOSITY,
+        help="Specify verbosity of output (0 - silent, 1 - max)",
+    )
+
     # Parse all args
     args = parser.parse_args()
 
@@ -678,7 +709,6 @@ def main():
         path_to_gbk, output_file_name, path_to_output_folder, suffix_file_name
     )
 
-    batch_size = args.batch_size
 
     min_gap_length = args.min_gap_length
     max_gap_length = args.max_gap_length
@@ -690,15 +720,18 @@ def main():
 
     mfe_threshold_hpa = args.mfe_threshold_hpa
     mfe_threshold_hpt = args.mfe_threshold_hpt
+    verbosity = args.verbosity
 
-    print(f"Writing output to: {path_to_output}")
+    setup_logging(args.verbosity)
+
+    logging.info(f"Writing output to: {path_to_output}")
 
     record_list = []
     feature_list = []
     intervaled_features_list = []
 
     # Try opening file as proper gbk
-    print("Reading gbk...")
+    logging.info("Reading gbk...")
     try:
         with open(path_to_gbk) as handle:
             for record in GenBank.parse(handle):
@@ -708,7 +741,7 @@ def main():
 
     # Try to fix bp LOCUS string issue
     except ValueError:
-        print("Trying to fix possible prokka LOCUS input error...")
+        logging.info("Trying to fix possible prokka LOCUS input error...")
         modify_first_line(path_to_gbk, path_to_output)
 
         with open(path_to_output) as handle:
@@ -719,7 +752,10 @@ def main():
         feature_list.append(feature)
 
     for feature in tqdm(
-        feature_list, desc="Processing annotations...", bar_format=BAR_FORMAT
+        feature_list,
+        desc="Processing annotations...",
+        disable=logging.root.level > logging.INFO,
+        bar_format=BAR_FORMAT,
     ):
         location = (
             feature.location.replace("complement(", "")
@@ -750,21 +786,19 @@ def main():
 
     sequence = Seq(record_list[0].sequence)
 
-    print("Annotating RNA hairpins...")
-    print("This might take a while...")
+    logging.info("Annotating RNA hairpins...")
+    logging.info("This might take a while...")
 
-    print("Calculating batches...")
     subsequences = split_sequence(str(sequence.transcribe()), filtered_intervals)
 
-    print(f"Total # of gaps: {len(subsequences)}")
-
-    print("Processing forward strand...")
+    logging.info(f"Total # of gaps: {len(subsequences)}")
+    logging.info("Processing forward strand...")
 
     top_hairpins_f, all_hairpins_f = find_hairpins_in_subseqs(
         subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
     )
 
-    print("Processing reverse strand...")
+    logging.info("Processing reverse strand...")
 
     subsequences = split_sequence(str(sequence.complement_rna()), filtered_intervals)
 
@@ -772,7 +806,7 @@ def main():
         subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
     )
 
-    print("Finding insertion sites...")
+    logging.info("Finding insertion sites...")
     insertion_sites_f = find_insertion_sites(filtered_intervals, top_hairpins_f)
     insertion_sites_r = find_insertion_sites(filtered_intervals, top_hairpins_r)
 
@@ -780,7 +814,7 @@ def main():
         insertion_sites_f + insertion_sites_r
     )
 
-    print("Writing output...")
+    logging.info("Writing output...")
     insert_before_origin(
         path_to_output,
         (
@@ -793,7 +827,7 @@ def main():
         ),
     )
 
-    print("Finished!")
+    logging.info("Finished!")
 
 
 if __name__ == "__main__":

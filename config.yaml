@@ -17,3 +17,5 @@ mfe_threshold_hpa: -1
 bar_format: "{desc:<50.100} {percentage:3.0f}% |{bar:100}{r_bar}"
 
 num_processes: null # if not specified takes all available cpus
+
+verbosity: 1
