@@ -3,12 +3,13 @@ import logging
 import shutil
 import multiprocessing as mp
 
+import yaml
 from Bio import SeqIO
 from Bio.Seq import Seq
 from tqdm import tqdm
 
 from gapzilla.config import setup_logging, config
-from gapzilla.file_handling import create_output_path, modify_first_line
+from gapzilla.file_handling import create_output_path, modify_first_line, uniquify_path
 from gapzilla.feature_analysis import (
     create_hairpins_feature,
     create_insertion_sites_feature,
@@ -27,15 +28,13 @@ from gapzilla.insertion_finder import (
     find_insertion_sites,
     find_overlapping_insertion_sites,
 )
-from gapzilla.utils import timeit
+from gapzilla.utils import timeit, list_of_strings
 
 
 # Constants
 OUTPUT_FILE_NAME = config["output_file_name"]
 PATH_TO_OUTPUT_FOLDER = config["path_to_output_folder"]
 SUFFIX_FILE_NAME = config["suffix_file_name"]
-
-OVERLAP_SIZE = config["overlap_size"]
 
 MIN_GAP_LENGTH = config["min_gap_length"]
 MAX_GAP_LENGTH = config["max_gap_length"]
@@ -44,6 +43,8 @@ MAX_FLANKS_LENGTH = config["max_flanks_length"]
 MFE_THRESHOLD_HPT = config["mfe_threshold_hpt"]
 MFE_THRESHOLD_HPA = config["mfe_threshold_hpa"]
 
+HAIRPIN_SIMILARITY_THRES = config["hairpin_similaruty_thres"]
+
 BAR_FORMAT = config["bar_format"]
 
 NUM_PROCESSES = (
@@ -51,6 +52,11 @@ NUM_PROCESSES = (
 )  # take maximum available if not specified
 
 VERBOSITY = config["verbosity"]
+
+if config["avoid_plotting"]:
+    AVOID_PLOTTING = config["avoid_plotting"].split(" ")
+else:
+    AVOID_PLOTTING = []
 
 
 @timeit
@@ -131,6 +137,14 @@ def main():
     )
 
     parser.add_argument(
+        "--hairpin_similarity_thres",
+        "-similarity",
+        type=int,
+        default=HAIRPIN_SIMILARITY_THRES,
+        help="Threshold for filtering similar hairpins. Lower thres -> more hairpins dropped",
+    )
+
+    parser.add_argument(
         "--threads",
         "-t",
         type=int,
@@ -146,32 +160,89 @@ def main():
         help="Specify verbosity of output (0 - silent, 1 - max)",
     )
 
+    parser.add_argument(
+        "--avoid_plotting",
+        "-ap",
+        default=AVOID_PLOTTING,
+        metavar="N",
+        type=str,
+        nargs="*",
+        help="Specify instances that will not be plotted. Example to drop hpa: -ap all_hairpins_f all_hairpins_r. Full list of plottable instances: gaps, top_hairpins_f, top_hairpins_r, all_hairpins_f, all_hairpins_r, insertion_sites",
+    )
+
+    parser.add_argument(
+        "--custom_config",
+        "-cc",
+        default=None,
+        metavar="N",
+        type=str,
+        help="Path to custom yaml config file that will override defaults and any other commandline args",
+    )
+
     # Parse all args
+
     args = parser.parse_args()
 
     path_to_gbk = args.path_to_gbk
 
-    output_file_name = args.output_file_name
-    path_to_output_folder = args.path_to_output_folder
-    suffix_file_name = args.suffix_file_name
+    custom_config = args.custom_config
 
-    path_to_output = create_output_path(
-        path_to_gbk, output_file_name, path_to_output_folder, suffix_file_name
+    if custom_config is not None:
+        with open(custom_config, "r") as file:
+            config = yaml.safe_load(file)
+
+        output_file_name = config["output_file_name"]
+        path_to_output_folder = config["path_to_output_folder"]
+        suffix_file_name = config["suffix_file_name"]
+
+        min_gap_length = config["min_gap_length"]
+        max_gap_length = config["max_gap_length"]
+
+        min_flanks_length = config["min_flanks_length"]
+        max_flanks_length = config["max_flanks_length"]
+
+        mfe_threshold_hpt = config["mfe_threshold_hpt"]
+        mfe_threshold_hpa = config["mfe_threshold_hpa"]
+
+        hairpin_similarity_thres = config["hairpin_similarity_thres"]
+
+        num_processes = config["num_processes"] or mp.cpu_count()
+
+        verbosity = config["verbosity"]
+        setup_logging(args.verbosity)
+
+        if config["avoid_plotting"]:
+            avoid_plotting = config["avoid_plotting"].split(" ")
+        else:
+            avoid_plotting = []
+    else:
+        output_file_name = args.output_file_name
+        path_to_output_folder = args.path_to_output_folder
+        suffix_file_name = args.suffix_file_name
+
+        min_gap_length = args.min_gap_length
+        max_gap_length = args.max_gap_length
+
+        min_flanks_length = args.min_flanks_length
+        max_flanks_length = args.max_flanks_length
+
+        num_processes = args.threads
+
+        mfe_threshold_hpa = args.mfe_threshold_hpa
+        mfe_threshold_hpt = args.mfe_threshold_hpt
+
+        hairpin_similarity_thres = args.hairpin_similarity_thres
+
+        verbosity = args.verbosity
+        setup_logging(args.verbosity)
+
+        avoid_plotting = args.avoid_plotting
+
+    path_to_output = uniquify_path(
+        create_output_path(
+            path_to_gbk, output_file_name, path_to_output_folder, suffix_file_name
+        )
     )
-
-    min_gap_length = args.min_gap_length
-    max_gap_length = args.max_gap_length
-
-    min_flanks_length = args.min_flanks_length
-    max_flanks_length = args.max_flanks_length
-
-    num_processes = args.threads
-
-    mfe_threshold_hpa = args.mfe_threshold_hpa
-    mfe_threshold_hpt = args.mfe_threshold_hpt
-    verbosity = args.verbosity
-
-    setup_logging(args.verbosity)
 
     logging.info(f"Writing output to: {path_to_output}")
 
@@ -235,7 +306,11 @@ def main():
     logging.info("Processing forward strand...")
 
     top_hairpins_f, all_hairpins_f = find_hairpins_in_subseqs(
-        subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
+        subsequences,
+        mfe_threshold_hpt,
+        mfe_threshold_hpa,
+        num_processes,
+        hairpin_similarity_thres,
     )
 
     logging.info("Processing reverse strand...")
@@ -243,7 +318,11 @@ def main():
     subsequences = split_sequence(str(sequence.complement_rna()), filtered_intervals)
 
     top_hairpins_r, all_hairpins_r = find_hairpins_in_subseqs(
-        subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
+        subsequences,
+        mfe_threshold_hpt,
+        mfe_threshold_hpa,
+        num_processes,
+        hairpin_similarity_thres,
     )
 
     logging.info("Finding insertion sites...")
@@ -256,15 +335,27 @@ def main():
 
     logging.info("Writing output...")
 
-    record.features = (
-        record.features
-        + create_uncovered_intervals_feature(filtered_intervals)
-        + create_hairpins_feature(top_hairpins_f, "hpt")
-        + create_hairpins_feature(all_hairpins_f, "hpa")
-        + create_hairpins_feature(top_hairpins_r, "hpt", complement=True)
-        + create_hairpins_feature(all_hairpins_r, "hpa", complement=True)
-        + create_insertion_sites_feature(insertion_sites_overlapping)
-    )
+    print(avoid_plotting)
+
+    plot_dict = {
+        "gaps": create_uncovered_intervals_feature(filtered_intervals),
+        "top_hairpins_f": create_hairpins_feature(top_hairpins_f, "hpt"),
+        "all_hairpins_f": create_hairpins_feature(all_hairpins_f, "hpa"),
+        "top_hairpins_r": create_hairpins_feature(
+            top_hairpins_r, "hpt", complement=True
+        ),
+        "all_hairpins_r": create_hairpins_feature(
+            all_hairpins_r, "hpa", complement=True
+        ),
+        "insertion_sites": create_insertion_sites_feature(insertion_sites_overlapping),
+    }
+
+    list_to_plot = []
+    for key in plot_dict.keys():
+        if key not in avoid_plotting:
+            list_to_plot += plot_dict[key]
+
+    record.features = record.features + list_to_plot
 
     with open(path_to_output, "w") as handle:
         SeqIO.write(record, handle, "genbank")

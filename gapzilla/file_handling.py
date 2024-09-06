@@ -48,3 +48,14 @@ def modify_first_line(input_path, output_path):
 
     with open(output_path, "w") as file:
         file.writelines(lines)
+
+
+def uniquify_path(path):
+    filename, extension = os.path.splitext(path)
+    counter = 1
+
+    while os.path.exists(path):
+        path = filename + "_(" + str(counter) + ")" + extension
+        counter += 1
+
+    return path

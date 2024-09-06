@@ -14,3 +14,7 @@ def timeit(func):
         return result
 
     return timeit_wrapper
+
+
+def list_of_strings(arg):
+    return arg.split(", ")
