@@ -146,7 +146,7 @@ def insert_before_origin(file_path, insert_strings):
         file.write(modified_content)
 
 
-def split_sequence(sequence, window_size=10e6, overlap=10e3):
+def split_sequence_(sequence, window_size=10e6, overlap=10e3):
     step_size = int(window_size - overlap)
     subsequences = []
     for i in range(0, len(sequence), step_size):
@@ -156,6 +156,18 @@ def split_sequence(sequence, window_size=10e6, overlap=10e3):
         subsequences.append(sequence[i:end_index])
         if end_index == len(sequence):
             break
+    return subsequences
+
+
+def split_sequence(sequence, gaps, overlap=75):
+    subsequences = {}
+    for indx, gap in enumerate(gaps):
+        subsequences[indx] = {}
+        subsequences[indx]["seq"] = sequence[
+            slice(gap.interval[0] - overlap, gap.interval[1] + overlap)
+        ]
+        subsequences[indx]["start"] = gap.interval[0] - overlap
+
     return subsequences
 
 
@@ -488,14 +500,8 @@ def find_top_hairpins(
     ]
     all_hairpins = []
 
-    with tqdm(
-        total=len(args),
-        desc=f"Calculating hairpins in batch #{batch_num}...",
-        bar_format=BAR_FORMAT,
-    ) as pbar:
-        for result in pool.imap_unordered(process_window, args):
-            all_hairpins.extend(result)
-            pbar.update()
+    for result in pool.imap_unordered(process_window, args):
+        all_hairpins.extend(result)
 
     pool.close()
     pool.join()
@@ -508,6 +514,62 @@ def find_top_hairpins(
     ]
 
     return filtered_hairpins, all_hairpins
+
+
+def find_hairpins_in_subseqs(
+    subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
+):
+
+    top_hairpins, all_hairpins = [], []
+    for subsequence in tqdm(
+        subsequences, desc="Processing subsequences...", bar_format=BAR_FORMAT
+    ):
+
+        sequence_ = subsequences[subsequence]["seq"]
+
+        top_hairpins_subs, all_hairpins_subs = find_top_hairpins(
+            sequence_,
+            mfe_threshold_hpt=mfe_threshold_hpt,
+            mfe_threshold_hpa=mfe_threshold_hpa,
+            num_processes=num_processes,
+        )
+
+        top_hairpins_subs = [
+            (
+                x[0] + subsequences[subsequence]["start"],
+                x[1] + subsequences[subsequence]["start"],
+                x[2],
+                x[3],
+                x[4],
+            )
+            for x in top_hairpins_subs
+        ]
+
+        all_hairpins_subs = [
+            (
+                x[0] + subsequences[subsequence]["start"],
+                x[1] + subsequences[subsequence]["start"],
+                x[2],
+                x[3],
+                x[4],
+            )
+            for x in all_hairpins_subs
+        ]
+
+        top_hairpins.append(top_hairpins_subs)
+        all_hairpins.append(all_hairpins_subs)
+
+    top_hairpins = list(reduce(lambda x, y: x + y, top_hairpins, []))
+    all_hairpins = list(reduce(lambda x, y: x + y, all_hairpins, []))
+
+    all_hairpins = merge_similar_hairpins(all_hairpins, overlap_threshold=0.95)
+    top_hairpins = merge_similar_hairpins(
+        top_hairpins,
+        overlap_threshold=0.95,
+        message="Merging similar top hairpins...",
+    )
+
+    return top_hairpins, all_hairpins
 
 
 @timeit
@@ -676,12 +738,10 @@ def main():
         intervaled_features_list[0].interval, merged_intervals
     )
 
-    # Filter by gaps length
     filtered_intervals = filter_intervals_by_length(
         uncovered_intervals, min_gap_length, max_gap_length
     )
 
-    # Filter by flanks length
     filtered_intervals = filter_intervals_by_flanking_legth(
         filtered_intervals, min_flanks_length, max_flanks_length
     )
@@ -694,104 +754,22 @@ def main():
     print("This might take a while...")
 
     print("Calculating batches...")
-    subsequences = split_sequence(str(sequence.transcribe()), batch_size, OVERLAP_SIZE)
-    num_batches = len(subsequences)
-    print(f"Total # of batches: {num_batches}")
+    subsequences = split_sequence(str(sequence.transcribe()), filtered_intervals)
+
+    print(f"Total # of gaps: {len(subsequences)}")
 
     print("Processing forward strand...")
 
-    top_hairpins_f, all_hairpins_f = [], []
-
-    for indx, sequence_ in enumerate(subsequences):
-        top_hairpins_f_subs, all_hairpins_f_subs = find_top_hairpins(
-            sequence_,
-            mfe_threshold_hpt=mfe_threshold_hpt,
-            mfe_threshold_hpa=mfe_threshold_hpa,
-            batch_num=indx + 1,
-            num_processes=num_processes,
-        )
-
-        top_hairpins_f_subs = [
-            (
-                x[0] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[1] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[2],
-                x[3],
-                x[4],
-            )
-            for x in top_hairpins_f_subs
-        ]
-        all_hairpins_f_subs = [
-            (
-                x[0] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[1] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[2],
-                x[3],
-                x[4],
-            )
-            for x in all_hairpins_f_subs
-        ]
-
-        top_hairpins_f.append(top_hairpins_f_subs)
-        all_hairpins_f.append(all_hairpins_f_subs)
-
-    top_hairpins_f = list(reduce(lambda x, y: x + y, top_hairpins_f, []))
-    all_hairpins_f = list(reduce(lambda x, y: x + y, all_hairpins_f, []))
-
-    all_hairpins_f = merge_similar_hairpins(all_hairpins_f, overlap_threshold=0.95)
-    top_hairpins_f = merge_similar_hairpins(
-        top_hairpins_f,
-        overlap_threshold=0.95,
-        message="Merging similar top hairpins...",
+    top_hairpins_f, all_hairpins_f = find_hairpins_in_subseqs(
+        subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
     )
 
     print("Processing reverse strand...")
 
-    subsequences = split_sequence(str(sequence.complement_rna()), batch_size, 1000)
+    subsequences = split_sequence(str(sequence.complement_rna()), filtered_intervals)
 
-    top_hairpins_r, all_hairpins_r = [], []
-
-    for indx, sequence_ in enumerate(subsequences):
-        top_hairpins_r_subs, all_hairpins_r_subs = find_top_hairpins(
-            sequence_,
-            mfe_threshold_hpt=mfe_threshold_hpt,
-            mfe_threshold_hpa=mfe_threshold_hpa,
-            batch_num=indx + 1,
-            num_processes=num_processes,
-        )
-
-        top_hairpins_r_subs = [
-            (
-                x[0] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[1] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[2],
-                x[3],
-                x[4],
-            )
-            for x in top_hairpins_r_subs
-        ]
-        all_hairpins_r_subs = [
-            (
-                x[0] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[1] + indx * batch_size - indx * OVERLAP_SIZE,
-                x[2],
-                x[3],
-                x[4],
-            )
-            for x in all_hairpins_r_subs
-        ]
-
-        top_hairpins_r.append(top_hairpins_r_subs)
-        all_hairpins_r.append(all_hairpins_r_subs)
-
-    top_hairpins_r = list(reduce(lambda x, y: x + y, top_hairpins_r, []))
-    all_hairpins_r = list(reduce(lambda x, y: x + y, all_hairpins_r, []))
-
-    all_hairpins_r = merge_similar_hairpins(all_hairpins_r, overlap_threshold=0.95)
-    top_hairpins_r = merge_similar_hairpins(
-        top_hairpins_r,
-        overlap_threshold=0.95,
-        message="Merging similar top hairpins...",
+    top_hairpins_r, all_hairpins_r = find_hairpins_in_subseqs(
+        subsequences, mfe_threshold_hpt, mfe_threshold_hpa, num_processes
     )
 
     print("Finding insertion sites...")
