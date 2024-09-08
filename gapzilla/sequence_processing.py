@@ -1,30 +1,31 @@
 import logging
 
+from Bio.Seq import Seq
 from tqdm import tqdm
 
-from gapzilla.config import config
-from gapzilla.models import IntervaledGap
+from gapzilla.config import BAR_FORMAT
+from gapzilla.models import IntervaledGap, IntervaledFeature
 
 
-BAR_FORMAT = config["bar_format"]
+def split_sequence(
+    sequence: Seq | str, gaps: IntervaledGap, border_shift: int = 75
+) -> list[str]:
 
-
-def split_sequence(sequence, gaps, overlap=75):
     subsequences = {}
     for indx, gap in enumerate(gaps):
         subsequences[indx] = {}
         subsequences[indx]["seq"] = sequence[
-            slice(gap.interval[0] - overlap, gap.interval[1] + overlap)
+            slice(gap.start - border_shift, gap.end + border_shift)
         ]
-        subsequences[indx]["start"] = gap.interval[0] - overlap
+        subsequences[indx]["start"] = gap.start - border_shift
 
     return subsequences
 
 
-def merge_intervals(intervaled_features):
-    sorted_intervaled_features = sorted(
-        intervaled_features, key=lambda x: x.interval[0]
-    )
+def merge_intervals(
+    intervaled_features: list[IntervaledFeature],
+) -> list[IntervaledFeature]:
+    sorted_intervaled_features = sorted(intervaled_features, key=lambda x: x.start)
 
     merged_intervaled_features = []
 
@@ -36,14 +37,13 @@ def merge_intervals(intervaled_features):
     ):
         if (
             not merged_intervaled_features
-            or merged_intervaled_features[-1].interval[1]
-            < intervaled_feature.interval[0]
+            or merged_intervaled_features[-1].end < intervaled_feature.start
         ):
             merged_intervaled_features.append(intervaled_feature)
         else:
-            merged_intervaled_features[-1].interval[1] = max(
-                merged_intervaled_features[-1].interval[1],
-                intervaled_feature.interval[1],
+            merged_intervaled_features[-1].end = max(
+                merged_intervaled_features[-1].end,
+                intervaled_feature.end,
             )
             if (
                 intervaled_feature.feature_list[0]
@@ -61,10 +61,9 @@ def merge_intervals(intervaled_features):
     return merged_intervaled_features
 
 
-def find_uncovered_intervals(interval, intervaled_features):
+def find_uncovered_intervals(start, end, intervaled_features) -> list[IntervaledGap]:
 
-    start, end = interval
-    intervaled_features.sort(key=lambda x: x.interval)  # Sort by intervals
+    intervaled_features.sort(key=lambda x: x.start)  # Sort by intervals
 
     uncovered_intervals = []
     current_start = start
@@ -76,7 +75,7 @@ def find_uncovered_intervals(interval, intervaled_features):
         desc="Finding uncovered intervals...",
         bar_format=BAR_FORMAT,
     ):
-        i_start, i_end = feature.interval
+        i_start, i_end = feature.start, feature.end
         if i_end <= start:
             prev_feature = feature
             continue
@@ -87,14 +86,17 @@ def find_uncovered_intervals(interval, intervaled_features):
             uncovered_interval = (current_start + 1, i_start - 1)
             features_left = (
                 prev_feature
-                if prev_feature and prev_feature.interval[1] <= uncovered_interval[0]
+                if prev_feature and prev_feature.end <= uncovered_interval[0]
                 else None
             )
-            features_right = (
-                feature if feature.interval[0] >= uncovered_interval[1] else None
-            )
+            features_right = feature if feature.start >= uncovered_interval[1] else None
             uncovered_intervals.append(
-                IntervaledGap(uncovered_interval, features_left, features_right)
+                IntervaledGap(
+                    uncovered_interval[0],
+                    uncovered_interval[1],
+                    features_left,
+                    features_right,
+                )
             )
 
         current_start = max(current_start, i_end)
@@ -104,12 +106,17 @@ def find_uncovered_intervals(interval, intervaled_features):
         uncovered_interval = (current_start + 1, end - 1)
         features_left = (
             prev_feature
-            if prev_feature and prev_feature.interval[1] <= uncovered_interval[0]
+            if prev_feature and prev_feature.end <= uncovered_interval[0]
             else None
         )
         features_right = None
         uncovered_intervals.append(
-            IntervaledGap(uncovered_interval, features_left, features_right)
+            IntervaledGap(
+                uncovered_interval[0],
+                uncovered_interval[1],
+                features_left,
+                features_right,
+            )
         )
 
     return uncovered_intervals
@@ -124,8 +131,8 @@ def filter_intervals_by_length(intervals, min_length, max_length):
         bar_format=BAR_FORMAT,
     ):
 
-        if intervaled_gap.interval[0] and intervaled_gap.interval[1]:
-            start, end = intervaled_gap.interval[0], intervaled_gap.interval[1]
+        if intervaled_gap.start and intervaled_gap.end:
+            start, end = intervaled_gap.start, intervaled_gap.end
             length = end - start
 
             if min_length <= length + 1 <= max_length:

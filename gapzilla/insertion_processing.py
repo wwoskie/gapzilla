@@ -6,7 +6,7 @@ def find_insertion_sites(gaps, coverages):
     coverages = [(c[0], c[1]) for c in sorted(coverages, key=lambda x: x[0])]
 
     for gap in gaps:
-        g_start, g_end = gap.interval
+        g_start, g_end = gap.start, gap.end
         current_pos = g_start
 
         for c_start, c_end in coverages:
@@ -45,13 +45,13 @@ def find_insertion_sites(gaps, coverages):
 
 
 def find_overlapping_insertion_sites(insertion_sites):
-    insertion_sites = sorted(insertion_sites, key=lambda x: x.interval[0])
+    insertion_sites = sorted(insertion_sites, key=lambda x: x.start)
     result = []
     n = len(insertion_sites)
 
     for i in range(n):
         current_site = insertion_sites[i]
-        current_start, current_end = current_site.interval
+        current_start, current_end = current_site.start, current_site.end
         current_score = current_site.score
 
         # Always add the original interval first
@@ -59,7 +59,7 @@ def find_overlapping_insertion_sites(insertion_sites):
 
         for j in range(i + 1, n):
             next_site = insertion_sites[j]
-            next_start, next_end = next_site.interval
+            next_start, next_end = next_site.start, next_site.end
 
             if next_start > current_end:
                 break  # No more overlaps possible
