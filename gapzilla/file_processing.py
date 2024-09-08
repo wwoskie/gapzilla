@@ -1,14 +1,60 @@
+"""
+Functions to manipulate files and directories.
+"""
+
 import os
 
 
-def create_dirs_to_output(path_to_dirs):
+def create_dirs_to_output(path_to_dirs: str | os.PathLike) -> None:
+    """
+    Create directories to the specified output path if they do not already exist.
+
+    Parameters
+    ----------
+    path_to_dirs : str or os.PathLike
+        The path to the directory or directories that need to be created. This
+        can be provided as a string or an `os.PathLike` object.
+
+    Returns
+    -------
+    None
+    """
+
     if not os.path.isdir(path_to_dirs):
         os.makedirs(path_to_dirs)
 
 
 def create_output_path(
-    input_path, output_file_name, path_to_output_folder, suffix_file_name="output"
-):
+    input_path: str | os.PathLike,
+    output_file_name: str,
+    path_to_output_folder: str | os.PathLike,
+    suffix_file_name: str = "output",
+) -> str | os.PathLike:
+    """
+    Create an output path based on the input path, output file name, output folder,
+    and an optional suffix for the file name.
+
+    Parameters
+    ----------
+    input_path : str or os.PathLike
+        The path of the input file which serves as a basis for deriving the
+        output path.
+    output_file_name : str
+        The name of the output file. If not provided, the name will be derived
+        from the `input_path` filename and the `suffix_file_name`.
+    path_to_output_folder : str or os.PathLike
+        The directory where the output file should be saved. If not provided,
+        the directory of the `input_path` will be used. If doesn't exits will be created.
+    suffix_file_name : str, optional
+        The suffix to append to the file name if `output_file_name` is not
+        provided. Default is "output".
+
+    Returns
+    -------
+    str or os.PathLike
+        The complete path where the output file should be saved.
+    """
+
     if path_to_output_folder:
         create_dirs_to_output(path_to_output_folder)
     if not output_file_name and not path_to_output_folder:
@@ -35,7 +81,33 @@ def create_output_path(
     return output_path
 
 
-def modify_first_line(input_path, output_path):
+def modify_first_line(
+    input_path: str | os.PathLike, output_path: str | os.PathLike
+) -> None:
+    """
+    Modify the first line of a file if it contains the keyword "LOCUS" and
+    save the modified content to a new file. This function fixes PROKKA invalid output.
+
+    Parameters
+    ----------
+    input_path : str or os.PathLike
+        The path to the input file whose content is to be modified.
+    output_path : str or os.PathLike
+        The path to the output file where the modified content will be saved.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    - This function reads the entire content of the input file into a list of
+      lines.
+    - If the first line of the file contains the keyword "LOCUS" and the text "bp",
+      the function inserts "0 " before "bp" in the first line.
+    - The modified content is then written to the output file.
+    """
+
     with open(input_path, "r") as file:
         lines = file.readlines()
 
@@ -50,7 +122,22 @@ def modify_first_line(input_path, output_path):
         file.writelines(lines)
 
 
-def uniquify_path(path):
+def uniquify_path(path: str | os.PathLike) -> str | os.PathLike:
+    """
+    Generate a unique file path by appending a counter to the file name if a file with
+    the given path already exists.
+
+    Parameters
+    ----------
+    path : str or os.PathLike
+        The initial file path that needs to be uniquified.
+
+    Returns
+    -------
+    str or os.PathLike
+        A unique file path with a counter appended if the original path already exists.
+    """
+
     filename, extension = os.path.splitext(path)
     counter = 1
 

@@ -11,5 +11,5 @@ from .gbk_processing import *
 from .hairpin_processing import *
 from .insertion_processing import *
 from .models import *
-from .sequence_processing import *
+from .interval_processing import *
 from .utils import *

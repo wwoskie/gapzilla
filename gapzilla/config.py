@@ -1,3 +1,7 @@
+"""
+This submodule handles parsing data from config file and setting up logging.
+"""
+
 import logging
 import yaml
 import multiprocessing as mp

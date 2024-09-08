@@ -150,56 +150,42 @@ def main() -> None:
     custom_config = args.custom_config
 
     # Overrride all if custom config is provided
+
     if custom_config is not None:
         with open(custom_config, "r") as file:
-            config = yaml.safe_load(file)
+            custom_config = yaml.safe_load(file)
+        if custom_config["avoid_plotting"]:
+            custom_config["avoid_plotting"] = custom_config["avoid_plotting"].split(" ")
 
-        output_file_name = config["output_file_name"]
-        path_to_output_folder = config["path_to_output_folder"]
-        suffix_file_name = config["suffix_file_name"]
-
-        min_gap_length = config["min_gap_length"]
-        max_gap_length = config["max_gap_length"]
-
-        min_flanks_length = config["min_flanks_length"]
-        max_flanks_length = config["max_flanks_length"]
-
-        mfe_threshold_hpt = config["mfe_threshold_hpt"]
-        mfe_threshold_hpa = config["mfe_threshold_hpa"]
-
-        hairpin_similarity_thres = config["hairpin_similarity_thres"]
-        border_shift = config["border_shift"]
-
-        num_processes = config["num_processes"] or mp.cpu_count()
-
-        verbosity = config["verbosity"]
-
-        if config["avoid_plotting"]:
-            avoid_plotting = config["avoid_plotting"].split(" ")
-        else:
-            avoid_plotting = []
     else:
-        output_file_name = args.output_file_name
-        path_to_output_folder = args.path_to_output_folder
-        suffix_file_name = args.suffix_file_name
+        custom_config = {}
 
-        min_gap_length = args.min_gap_length
-        max_gap_length = args.max_gap_length
+    # Set all necessary variable, if available, take from custom config, else use from args (defaults if other not provided)
+    output_file_name = custom_config.get("output_file_name", args.output_file_name)
+    path_to_output_folder = custom_config.get(
+        "path_to_output_folder", args.path_to_output_folder
+    )
+    suffix_file_name = custom_config.get("suffix_file_name", args.suffix_file_name)
 
-        min_flanks_length = args.min_flanks_length
-        max_flanks_length = args.max_flanks_length
+    min_gap_length = custom_config.get("min_gap_length", args.min_gap_length)
+    max_gap_length = custom_config.get("max_gap_length", args.max_gap_length)
 
-        mfe_threshold_hpa = args.mfe_threshold_hpa
-        mfe_threshold_hpt = args.mfe_threshold_hpt
+    min_flanks_length = custom_config.get("min_flanks_length", args.min_flanks_length)
+    max_flanks_length = custom_config.get("max_flanks_length", args.max_flanks_length)
 
-        hairpin_similarity_thres = args.hairpin_similarity_thres
-        border_shift = args.border_shift
+    mfe_threshold_hpa = custom_config.get("mfe_threshold_hpt", args.mfe_threshold_hpa)
+    mfe_threshold_hpt = custom_config.get("mfe_threshold_hpa", args.mfe_threshold_hpt)
 
-        num_processes = args.threads
+    hairpin_similarity_thres = custom_config.get(
+        "hairpin_similarity_thres", args.hairpin_similarity_thres
+    )
+    border_shift = custom_config.get("border_shift", args.border_shift)
 
-        verbosity = args.verbosity
+    num_processes = custom_config.get("num_processes", args.threads)
 
-        avoid_plotting = args.avoid_plotting
+    verbosity = custom_config.get("verbosity", args.verbosity)
+
+    avoid_plotting = custom_config.get("avoid_plotting", args.avoid_plotting)
 
     process_gbk(
         path_to_gbk,

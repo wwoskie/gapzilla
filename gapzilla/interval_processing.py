@@ -1,3 +1,7 @@
+"""
+Functions to process intervals and gaps
+"""
+
 import logging
 
 from Bio.Seq import Seq
@@ -9,7 +13,24 @@ from gapzilla.models import IntervaledGap, IntervaledFeature
 
 def split_sequence(
     sequence: Seq | str, gaps: IntervaledGap, border_shift: int = 75
-) -> list[str]:
+) -> list[Seq | str]:
+    """
+    Split the given sequence based on intervals and a specified border shift.
+
+    Parameters
+    ----------
+    sequence : Seq or str
+        The sequence to be split.
+    gaps : IntervaledGap
+        An iterable containing gap intervals with `start` and `end` attributes.
+    border_shift : int, optional
+        The number of positions to extend the borders of each gap interval. Default is 75.
+
+    Returns
+    -------
+    list of Seq or str
+        A list of subsequences extracted from the original sequence, each extended by the border shift value.
+    """
 
     subsequences = {}
     for indx, gap in enumerate(gaps):
@@ -25,6 +46,22 @@ def split_sequence(
 def merge_intervals(
     intervaled_features: list[IntervaledFeature],
 ) -> list[IntervaledFeature]:
+    """
+    Merge overlapping intervals from a list of intervaled features.
+
+    Parameters
+    ----------
+    intervaled_features : list of IntervaledFeature
+        A list of intervaled features to be merged. Each feature must have `start` and `end` attributes,
+        as well as `feature_list`, `feature_num`, and `feature_lengths` attributes.
+
+    Returns
+    -------
+    list of IntervaledFeature
+        A list of merged intervaled features with updated attributes including combined feature lists,
+        counts, and lengths.
+    """
+
     sorted_intervaled_features = sorted(intervaled_features, key=lambda x: x.start)
 
     merged_intervaled_features = []
@@ -61,7 +98,27 @@ def merge_intervals(
     return merged_intervaled_features
 
 
-def find_uncovered_intervals(start, end, intervaled_features) -> list[IntervaledGap]:
+def find_uncovered_intervals(
+    start: int, end: int, intervaled_features: list[IntervaledFeature]
+) -> list[IntervaledGap]:
+    """
+    Identify intervals within a specified range that are not covered by given features.
+
+    Parameters
+    ----------
+    start : int
+        The start position of the interested range.
+    end : int
+        The end position of the interested range.
+    intervaled_features : list of IntervaledFeature
+        A list of intervaled features, each having `start` and `end` attributes.
+
+    Returns
+    -------
+    list of IntervaledGap
+        A list of uncovered intervals, each represented as an `IntervaledGap` object.
+        Each gap object includes information about the interval and any adjacent features on the left and right.
+    """
 
     intervaled_features.sort(key=lambda x: x.start)  # Sort by intervals
 
@@ -83,7 +140,7 @@ def find_uncovered_intervals(start, end, intervaled_features) -> list[Intervaled
             break
 
         if i_start > current_start and (i_start - 1) != current_start:
-            uncovered_interval = (current_start + 1, i_start - 1)
+            uncovered_interval = (current_start, i_start)
             features_left = (
                 prev_feature
                 if prev_feature and prev_feature.end <= uncovered_interval[0]
@@ -103,7 +160,7 @@ def find_uncovered_intervals(start, end, intervaled_features) -> list[Intervaled
         prev_feature = feature
 
     if current_start < end:
-        uncovered_interval = (current_start + 1, end - 1)
+        uncovered_interval = (current_start, end)
         features_left = (
             prev_feature
             if prev_feature and prev_feature.end <= uncovered_interval[0]
@@ -122,7 +179,27 @@ def find_uncovered_intervals(start, end, intervaled_features) -> list[Intervaled
     return uncovered_intervals
 
 
-def filter_intervals_by_length(intervals, min_length, max_length):
+def filter_intervals_by_length(
+    intervals: list[IntervaledGap], min_length: int, max_length: int
+) -> list[IntervaledGap]:
+    """
+    Filter a list of intervaled gaps based on specified minimum and maximum lengths.
+
+    Parameters
+    ----------
+    intervals : list of IntervaledGap
+        A list of intervaled gaps, each with `start` and `end` attributes.
+    min_length : int
+        The minimum length an interval must have to be included in the output.
+    max_length : int
+        The maximum length an interval can have to be included in the output.
+
+    Returns
+    -------
+    list of IntervaledGap
+        A list of intervaled gaps that satisfy the specified length constraints.
+    """
+
     filtered_intervals = []
     for intervaled_gap in tqdm(
         intervals,
@@ -141,7 +218,27 @@ def filter_intervals_by_length(intervals, min_length, max_length):
     return filtered_intervals
 
 
-def filter_intervals_by_flanking_legth(intervals, min_flanks_length, max_flanks_length):
+def filter_intervals_by_flanking_legth(
+    intervals: list[IntervaledGap], min_flanks_length: int, max_flanks_length: int
+):
+    """
+    Filter a list of intervaled gaps based on the lengths of their flanking features.
+
+    Parameters
+    ----------
+    intervals : list of IntervaledGap
+        A list of intervaled gaps, each potentially having `features_left` and `features_right` attributes.
+    min_flanks_length : int
+        The minimum length a flanking feature must have for the gap to be included.
+    max_flanks_length : int
+        The maximum length a flanking feature can have for the gap to be included.
+
+    Returns
+    -------
+    list of IntervaledGap
+        A list of intervaled gaps where both flanking features fall within the specified length constraints.
+    """
+
     filtered_intervals = []
     for intervaled_gap in tqdm(
         intervals,

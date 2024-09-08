@@ -1,6 +1,57 @@
+"""
+Functions to transform data to biopython-acceptable `SeqRecord` format for .gbk files.
+"""
+
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 
-from gapzilla.models import IntervaledGap, InsertionSite
+from gapzilla.models import IntervaledGap, InsertionSite, Hairpin
+
+
+def create_hairpins_feature(
+    hairpins: list[Hairpin], type_of_hairpin: str, complement: bool = None
+) -> list[SeqFeature]:
+    """
+    Create a list of SeqFeature objects from a list of Hairpin objects.
+
+    Parameters
+    ----------
+    hairpins : list of Hairpin
+        A list of Hairpin objects, each containing information about a hairpin structure.
+    type_of_hairpin : str
+        A string representing the type of hairpin: `hpa` or `hpt`.
+    complement : bool, optional
+        If True, the strand will be set to -1 (complementary strand). If False or None, the strand will be set to 1 (forward strand).
+
+    Returns
+    -------
+    list of SeqFeature
+        A list of SeqFeature objects, each representing a hairpin with associated metadata.
+    """
+
+    if complement:
+        strand = -1
+    else:
+        strand = 1
+
+    hairpins_feature_list = []
+
+    for hairpin in hairpins:
+        qual = {
+            "label": type_of_hairpin,
+            "sequence": hairpin.sequence,
+            "structure": hairpin.structure,
+            "mfe": hairpin.mfe,
+        }
+
+        hairpins_feature_list.append(
+            SeqFeature(
+                FeatureLocation(hairpin.start, hairpin.end, strand=strand),
+                qualifiers=qual,
+                type="misc_feature",
+            )
+        )
+
+    return hairpins_feature_list
 
 
 def create_uncovered_intervals_feature(
@@ -34,36 +85,27 @@ def create_uncovered_intervals_feature(
     ]
 
 
-def create_hairpins_feature(hairpins, type_of_hairpin, complement=None):
-    if complement:
-        strand = -1
-    else:
-        strand = 1
-
-    hairpins_feature_list = []
-
-    for hairpin in hairpins:
-        qual = {
-            "label": type_of_hairpin,
-            "sequence": hairpin[2],
-            "structure": hairpin[3],
-            "mfe": hairpin[4],
-        }
-
-        hairpins_feature_list.append(
-            SeqFeature(
-                FeatureLocation(hairpin[0], hairpin[1], strand=strand),
-                qualifiers=qual,
-                type="misc_feature",
-            )
-        )
-
-    return hairpins_feature_list
-
-
 def create_insertion_sites_feature(
     insertion_sites: list[InsertionSite],
 ) -> list[SeqFeature]:
+    """
+    Create a list of sequence features from insertion sites.
+
+    Parameters
+    ----------
+    insertion_sites : list of InsertionSite
+        A list of `InsertionSite` objects representing the insertion sites.
+        Each `InsertionSite` object should have `start`, `end`, and `score`
+        attributes.
+
+    Returns
+    -------
+    list of SeqFeature
+        A list of `SeqFeature` objects created from the given insertion sites.
+        Each `SeqFeature` object will have a `FeatureLocation` from `start` to
+        `end` with a strand of 1, and qualifiers containing the `score` of the
+        insertion site and a `label` in the format of "ins<score>".
+    """
 
     return [
         SeqFeature(

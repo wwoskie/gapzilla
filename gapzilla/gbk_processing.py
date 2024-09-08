@@ -22,7 +22,7 @@ from gapzilla.feature_processing import (
 )
 from gapzilla.hairpin_processing import find_hairpins_in_subseqs
 from gapzilla.models import IntervaledFeature
-from gapzilla.sequence_processing import (
+from gapzilla.interval_processing import (
     merge_intervals,
     find_uncovered_intervals,
     filter_intervals_by_length,
@@ -165,7 +165,6 @@ def process_gbk(
     subsequences = split_sequence(
         str(sequence.transcribe()), filtered_intervals, border_shift
     )
-
     # Finding hairpins
     logging.info(f"Total # of gaps: {len(subsequences)}")
     logging.info("Processing forward strand...")
@@ -181,7 +180,6 @@ def process_gbk(
     subsequences = split_sequence(
         str(sequence.complement_rna()), filtered_intervals, border_shift
     )
-
     top_hairpins_r, all_hairpins_r = find_hairpins_in_subseqs(
         subsequences,
         mfe_threshold_hpt,
