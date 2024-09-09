@@ -38,7 +38,7 @@ def create_hairpins_feature(
     for hairpin in hairpins:
         qual = {
             "label": type_of_hairpin,
-            "sequence": hairpin.sequence,
+            # "sequence": hairpin.sequence,
             "structure": hairpin.structure,
             "mfe": hairpin.mfe,
         }
