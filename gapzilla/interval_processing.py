@@ -220,7 +220,7 @@ def filter_intervals_by_length(
 
 def filter_intervals_by_flanking_legth(
     intervals: list[IntervaledGap], min_flanks_length: int, max_flanks_length: int
-):
+) -> list[IntervaledGap]:
     """
     Filter a list of intervaled gaps based on the lengths of their flanking features.
 
@@ -255,6 +255,45 @@ def filter_intervals_by_flanking_legth(
                     min_flanks_length <= length_left + 1 <= max_flanks_length
                     and min_flanks_length <= length_right + 1 <= max_flanks_length
                 ):
+                    filtered_intervals.append(intervaled_gap)
+            except AttributeError:
+                continue
+
+    return filtered_intervals
+
+
+def filter_intervals_by_strand_direction(intervals: list[IntervaledGap]):
+    filtered_intervals = []
+    for intervaled_gap in tqdm(
+        intervals,
+        disable=logging.root.level > logging.INFO,
+        desc="Filtering intervals by strand direction...",
+        bar_format=BAR_FORMAT,
+    ):
+        """
+        Filter a list of IntervaledGap objects based on the direction of the features flanking the gaps.
+
+        Parameters
+        ----------
+        intervals : list[IntervaledGap]
+            A list of IntervaledGap objects to be filtered.
+
+        Returns
+        -------
+        list[IntervaledGap]
+            A filtered list of IntervaledGap objects where the left flanking gene's strand is 1 and the right 
+            flanking gene's strand is -1.
+        """
+        if intervaled_gap:
+            try:
+                feature_direction_left = intervaled_gap.features_left.feature_list[
+                    -1
+                ].location.strand
+                feature_direction_right = intervaled_gap.features_right.feature_list[
+                    0
+                ].location.strand
+
+                if feature_direction_left == 1 and feature_direction_right == -1:
                     filtered_intervals.append(intervaled_gap)
             except AttributeError:
                 continue

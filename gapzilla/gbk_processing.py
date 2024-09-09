@@ -27,6 +27,7 @@ from gapzilla.interval_processing import (
     find_uncovered_intervals,
     filter_intervals_by_length,
     filter_intervals_by_flanking_legth,
+    filter_intervals_by_strand_direction,
     split_sequence,
 )
 from gapzilla.insertion_processing import (
@@ -158,6 +159,8 @@ def process_gbk(
     filtered_intervals = filter_intervals_by_flanking_legth(
         filtered_intervals, min_flanks_length, max_flanks_length
     )
+
+    filtered_intervals = filter_intervals_by_strand_direction(filtered_intervals)
 
     sequence = Seq(record.seq)
 

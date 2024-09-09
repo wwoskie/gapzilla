@@ -10,12 +10,10 @@ Make sure you have your conda installed, conda env created and activated
     ```bash
     >>> tree -L 1
     .
-    ├── build
     ├── conda-build
     ├── conda-recipe
     ├── docs
     ├── documentation.html
-    ├── examples.ipynb
     ├── gapzilla
     ├── pyproject.toml
     ├── README.md
