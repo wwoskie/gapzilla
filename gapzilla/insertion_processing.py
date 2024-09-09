@@ -108,3 +108,41 @@ def find_overlapping_insertion_sites(
                 result.append(InsertionSite(overlap_start, overlap_end, overlap_score))
 
     return result
+
+
+def filter_insertion_sites_by_max_score(
+    insertion_sites: list[InsertionSite],
+) -> list[InsertionSite]:
+    """
+    Filter a list of insertion sites to keep only one site with the maximum score
+    if there are two or more sites with the exact same positions.
+
+    Parameters
+    ----------
+    insertion_sites : list of InsertionSite
+        A list of `InsertionSite` objects representing potential insertion sites.
+        Each `InsertionSite` should have `start`, `end`, and `score` attributes.
+
+    Returns
+    -------
+    list of InsertionSite
+        A filtered list of `InsertionSite` objects where only one site with the maximum
+        score is kept for each unique position.
+    """
+    from collections import defaultdict
+
+    # Dictionary to track the maximum score for each position
+    position_to_max_site = {}
+
+    for site in insertion_sites:
+        key = (site.start, site.end)
+        if key not in position_to_max_site:
+            position_to_max_site[key] = site
+        else:
+            if site.score > position_to_max_site[key].score:
+                position_to_max_site[key] = site
+
+    # Extract the filtered list of insertion sites
+    filtered_sites = list(position_to_max_site.values())
+
+    return filtered_sites
