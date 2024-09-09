@@ -1,0 +1,32 @@
+package:
+  name: gapzilla
+  version: 1.0.1
+
+source:
+  path: ../
+
+build:
+  script: python -m pip install .
+  entry_points:
+    - gapzilla = gapzilla.main:main
+
+requirements:
+  host:
+    - python >=3.10
+    - pip
+    - setuptools >=61.0
+  run:
+    - python >=3.10
+    - biopython
+    - pyyaml
+    - tqdm
+    - viennarna
+
+
+about:
+  summary: "A simple module to process a GenBank (gbk) file, identify and annotate RNA hairpins and insertion sites"
+  description: |
+    A simple module to process a GenBank (gbk) file, identify and annotate RNA hairpins and insertion sites.
+  authors:
+    - name: Aleksandr Voskoboinikov
+      email: wwoskie@gmail.com

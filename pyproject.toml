@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gapzilla"
+version = "1.0.1"
+authors = [{name="Aleksandr Voskoboinikov", email="wwoskie@gmail.com" }]
+description = "A simple module to process a GenBank (gbk) file, identify and annotate RNA hairpins and insertion sites"
+readme = "README.md"
+dependencies = ["biopython","pyyaml", "tqdm", "viennarna"]
+requires-python = ">=3.10"
+
+[project.scripts]
+gapzilla = "gapzilla.main:main"

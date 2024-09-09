@@ -2,4 +2,4 @@ python>=3.10
 biopython
 pyyaml
 tqdm
-viennarn
+viennarna
