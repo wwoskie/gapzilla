@@ -1,0 +1,5 @@
+path_to_gbk	output_file_name	path_to_output_folder	suffix_file_name	min_gap_length	max_gap_length	min_flanks_length	max_flanks_length	mfe_threshold_hpa	mfe_threshold_hpt	hairpin_similarity_thres	border_shift	num_processes	verbosity	avoid_plotting
+../data/result.gbk			loopA	50										
+../data/result.gbk	pupa													
+../data/result.gbk	lupa													
+../data/PROKKA_09092024.gbk														

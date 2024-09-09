@@ -281,7 +281,7 @@ def filter_intervals_by_strand_direction(intervals: list[IntervaledGap]):
         Returns
         -------
         list[IntervaledGap]
-            A filtered list of IntervaledGap objects where the left flanking gene's strand is 1 and the right 
+            A filtered list of IntervaledGap objects where the left flanking gene's strand is 1 and the right
             flanking gene's strand is -1.
         """
         if intervaled_gap:

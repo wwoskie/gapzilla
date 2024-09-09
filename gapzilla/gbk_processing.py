@@ -134,11 +134,12 @@ def process_gbk(
                 records_list.append(record)
 
     number_of_records = len(records_list)
-    logging.info(f"Total number of records in file: {number_of_records}")
 
     for indx, record in enumerate(records_list):
+        if indx == 0 and number_of_records > 1:
+            logging.info(f"Total number of records in file: {number_of_records}")
         if number_of_records > 1:
-            logging.info(f"Processing record # {indx + 1} {record.name}")
+            logging.info(f"Processing record # {indx + 1}: {record.name}")
 
         # Parsing features
         intervaled_features_list = []
