@@ -13,12 +13,10 @@ Make sure you have your conda installed, conda env created and activated
     ├── build
     ├── conda-build
     ├── conda-recipe
-    ├── config.yaml
     ├── docs
     ├── documentation.html
     ├── examples.ipynb
     ├── gapzilla
-    ├── gapzilla.egg-info
     ├── pyproject.toml
     ├── README.md
     └── requirements.txt
@@ -133,7 +131,7 @@ sys.path.append("path/to/gapzilla")
     ```
     The only required argument is `path_to_gbk`. Arguments can also be passed via custom config .yaml file:
     #### **Creating custom config file**
-    Default full config is a `.yaml` file with the following parameters:
+    Full default config would have the following parameters as a `.yaml` file:
     ```yaml
     output_file_name: ''
     path_to_output_folder: ''
@@ -152,7 +150,7 @@ sys.path.append("path/to/gapzilla")
     avoid_plotting: null
     ```
 
-    It is possible to edit this config and create a custom one. Say, we would like to pass another `suffix_name`, MFE threshold for hpt (`mfe_threshold_hpt`) and not to plot `hpa` hairpins at all. The provided custom config then should look like this:
+    It is possible to create custom config file. Say, we would like to pass another `suffix_name`, MFE threshold for hpt (`mfe_threshold_hpt`) and not to plot `hpa` hairpins at all. The provided custom config then should look like this:
     ```yaml
     suffix_file_name: "res"
     mfe_threshold_hpt: -20
