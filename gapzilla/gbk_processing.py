@@ -58,7 +58,7 @@ def process_gbk(
     """
     Process a GenBank (gbk) file to identify and annotate RNA hairpins and insertion sites.
 
-    This function reads a GenBank file, identifies gaps between annotated features,
+    This function reads a GenBank file with multiple records, identifies gaps between annotated features,
     filters these gaps based on provided criteria, and then searches for RNA hairpins
     within these gaps and in nearby regions according to the provided border shift. The identified hairpins and insertion sites are then annotated
     back into the GenBank file.
@@ -113,125 +113,139 @@ def process_gbk(
 
     logging.info(f"Writing output to: {path_to_output}")
 
+    # List to read and append records to
+    records_list = []
+    records_output = []
+
     # Try opening file as proper gbk
     logging.info("Reading gbk...")
     try:
-        record = SeqIO.read(
-            path_to_gbk,
-            "genbank",
-        )
+        with open(path_to_gbk) as handle:
+            for record in SeqIO.parse(handle, format="gb"):
+                records_list.append(record)
 
     # Try to fix bp LOCUS string issue
     except ValueError:
         logging.info("Trying to fix possible prokka LOCUS input error...")
         modify_first_line(path_to_gbk, path_to_output)
-        record = SeqIO.read(
-            path_to_output,
-            "genbank",
+
+        with open(path_to_output) as handle:
+            for record in SeqIO.parse(handle, format="gb"):
+                records_list.append(record)
+
+    number_of_records = len(records_list)
+    logging.info(f"Total number of records in file: {number_of_records}")
+
+    for indx, record in enumerate(records_list):
+        if number_of_records > 1:
+            logging.info(f"Processing record # {indx + 1} {record.name}")
+
+        # Parsing features
+        intervaled_features_list = []
+
+        for feature in tqdm(
+            record.features,
+            desc="Processing annotations...",
+            disable=logging.root.level > logging.INFO,
+            bar_format=BAR_FORMAT,
+        ):
+            start, stop = int(feature.location.start), int(feature.location.end)
+            feature.length = stop - start
+
+            intervaled_features_list.append(IntervaledFeature(start, stop, feature))
+
+        merged_intervals = merge_intervals(
+            intervaled_features_list[1:]
+        )  # Merging overlapping features
+        uncovered_intervals = find_uncovered_intervals(
+            intervaled_features_list[0].start,
+            intervaled_features_list[0].end,
+            merged_intervals,
+        )  # Finding uncovered intervals (gaps)
+
+        # Filtering gaps
+        filtered_intervals = filter_intervals_by_length(
+            uncovered_intervals, min_gap_length, max_gap_length
         )
 
-    # Parsing features
-    intervaled_features_list = []
+        filtered_intervals = filter_intervals_by_flanking_legth(
+            filtered_intervals, min_flanks_length, max_flanks_length
+        )
 
-    for feature in tqdm(
-        record.features,
-        desc="Processing annotations...",
-        disable=logging.root.level > logging.INFO,
-        bar_format=BAR_FORMAT,
-    ):
-        start, stop = int(feature.location.start), int(feature.location.end)
-        feature.length = stop - start
+        filtered_intervals = filter_intervals_by_strand_direction(filtered_intervals)
 
-        intervaled_features_list.append(IntervaledFeature(start, stop, feature))
+        sequence = Seq(record.seq)
 
-    merged_intervals = merge_intervals(
-        intervaled_features_list[1:]
-    )  # Merging overlapping features
-    uncovered_intervals = find_uncovered_intervals(
-        intervaled_features_list[0].start,
-        intervaled_features_list[0].end,
-        merged_intervals,
-    )  # Finding uncovered intervals (gaps)
+        logging.info("Annotating RNA hairpins...")
+        subsequences = split_sequence(
+            str(sequence.transcribe()), filtered_intervals, border_shift
+        )
+        # Finding hairpins
+        logging.info(f"Total # of gaps: {len(subsequences)}")
+        logging.info("Processing forward strand...")
+        top_hairpins_f, all_hairpins_f = find_hairpins_in_subseqs(
+            subsequences,
+            mfe_threshold_hpt,
+            mfe_threshold_hpa,
+            num_processes,
+            hairpin_similarity_thres,
+        )
 
-    # Filtering gaps
-    filtered_intervals = filter_intervals_by_length(
-        uncovered_intervals, min_gap_length, max_gap_length
-    )
+        logging.info("Processing reverse strand...")
+        subsequences = split_sequence(
+            str(sequence.complement_rna()), filtered_intervals, border_shift
+        )
+        top_hairpins_r, all_hairpins_r = find_hairpins_in_subseqs(
+            subsequences,
+            mfe_threshold_hpt,
+            mfe_threshold_hpa,
+            num_processes,
+            hairpin_similarity_thres,
+        )
 
-    filtered_intervals = filter_intervals_by_flanking_legth(
-        filtered_intervals, min_flanks_length, max_flanks_length
-    )
+        logging.info("Finding insertion sites...")
+        insertion_sites_f = find_insertion_sites(filtered_intervals, top_hairpins_f)
+        insertion_sites_r = find_insertion_sites(filtered_intervals, top_hairpins_r)
+        insertion_sites_overlapping = find_overlapping_insertion_sites(
+            insertion_sites_f + insertion_sites_r
+        )
+        insertion_sites_overlapping = filter_insertion_sites_by_max_score(
+            insertion_sites_overlapping
+        )
+        insertion_sites_overlapping = filter_insertion_sites_by_hairpins(
+            insertion_sites_overlapping, all_hairpins_f + all_hairpins_r
+        )
 
-    filtered_intervals = filter_intervals_by_strand_direction(filtered_intervals)
+        # Handle what to plot
+        plot_dict = {
+            "gaps": create_uncovered_intervals_feature(filtered_intervals),
+            "top_hairpins_f": create_hairpins_feature(top_hairpins_f, "hpt"),
+            "all_hairpins_f": create_hairpins_feature(all_hairpins_f, "hpa"),
+            "top_hairpins_r": create_hairpins_feature(
+                top_hairpins_r, "hpt", complement=True
+            ),
+            "all_hairpins_r": create_hairpins_feature(
+                all_hairpins_r, "hpa", complement=True
+            ),
+            "insertion_sites": create_insertion_sites_feature(
+                insertion_sites_overlapping
+            ),
+        }
 
-    sequence = Seq(record.seq)
+        # Feature will be plotted only if it's not in avoid_plotting list
+        list_to_plot = [
+            feature
+            for key, features in plot_dict.items()
+            if key not in avoid_plotting
+            for feature in features
+        ]
 
-    logging.info("Annotating RNA hairpins...")
-    subsequences = split_sequence(
-        str(sequence.transcribe()), filtered_intervals, border_shift
-    )
-    # Finding hairpins
-    logging.info(f"Total # of gaps: {len(subsequences)}")
-    logging.info("Processing forward strand...")
-    top_hairpins_f, all_hairpins_f = find_hairpins_in_subseqs(
-        subsequences,
-        mfe_threshold_hpt,
-        mfe_threshold_hpa,
-        num_processes,
-        hairpin_similarity_thres,
-    )
+        record.features = record.features + list_to_plot
 
-    logging.info("Processing reverse strand...")
-    subsequences = split_sequence(
-        str(sequence.complement_rna()), filtered_intervals, border_shift
-    )
-    top_hairpins_r, all_hairpins_r = find_hairpins_in_subseqs(
-        subsequences,
-        mfe_threshold_hpt,
-        mfe_threshold_hpa,
-        num_processes,
-        hairpin_similarity_thres,
-    )
-
-    logging.info("Finding insertion sites...")
-    insertion_sites_f = find_insertion_sites(filtered_intervals, top_hairpins_f)
-    insertion_sites_r = find_insertion_sites(filtered_intervals, top_hairpins_r)
-    insertion_sites_overlapping = find_overlapping_insertion_sites(
-        insertion_sites_f + insertion_sites_r
-    )
-    insertion_sites_overlapping = filter_insertion_sites_by_max_score(
-        insertion_sites_overlapping
-    )
-    insertion_sites_overlapping = filter_insertion_sites_by_hairpins(
-        insertion_sites_overlapping, all_hairpins_f + all_hairpins_r
-    )
-
-    # Handle what to plot
-    plot_dict = {
-        "gaps": create_uncovered_intervals_feature(filtered_intervals),
-        "top_hairpins_f": create_hairpins_feature(top_hairpins_f, "hpt"),
-        "all_hairpins_f": create_hairpins_feature(all_hairpins_f, "hpa"),
-        "top_hairpins_r": create_hairpins_feature(
-            top_hairpins_r, "hpt", complement=True
-        ),
-        "all_hairpins_r": create_hairpins_feature(
-            all_hairpins_r, "hpa", complement=True
-        ),
-        "insertion_sites": create_insertion_sites_feature(insertion_sites_overlapping),
-    }
-
-    # Feature will be plotted only if it's not in avoid_plotting list
-    list_to_plot = [
-        feature
-        for key, features in plot_dict.items()
-        if key not in avoid_plotting
-        for feature in features
-    ]
-
-    record.features = record.features + list_to_plot
+        records_output.append(record)
 
     logging.info("Writing output...")
     with open(path_to_output, "w") as handle:
-        SeqIO.write(record, handle, "genbank")
+        SeqIO.write(records_list, handle, "genbank")
 
     logging.info("Finished!")
