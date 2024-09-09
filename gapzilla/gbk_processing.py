@@ -34,6 +34,7 @@ from gapzilla.insertion_processing import (
     find_insertion_sites,
     find_overlapping_insertion_sites,
     filter_insertion_sites_by_max_score,
+    filter_insertion_sites_by_hairpins,
 )
 
 
@@ -200,6 +201,9 @@ def process_gbk(
     )
     insertion_sites_overlapping = filter_insertion_sites_by_max_score(
         insertion_sites_overlapping
+    )
+    insertion_sites_overlapping = filter_insertion_sites_by_hairpins(
+        insertion_sites_overlapping, all_hairpins_f + all_hairpins_r
     )
 
     # Handle what to plot

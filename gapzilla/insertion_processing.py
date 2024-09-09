@@ -129,7 +129,6 @@ def filter_insertion_sites_by_max_score(
         A filtered list of `InsertionSite` objects where only one site with the maximum
         score is kept for each unique position.
     """
-    from collections import defaultdict
 
     # Dictionary to track the maximum score for each position
     position_to_max_site = {}
@@ -144,5 +143,42 @@ def filter_insertion_sites_by_max_score(
 
     # Extract the filtered list of insertion sites
     filtered_sites = list(position_to_max_site.values())
+
+    return filtered_sites
+
+
+def filter_insertion_sites_by_hairpins(
+    insertion_sites: list[InsertionSite], hairpins: list[Hairpin]
+) -> list[InsertionSite]:
+    """
+    Filter insertion sites based on coverage by hairpins.
+
+    An insertion site will be dropped if it is fully covered by any hairpin.
+    If an insertion site is partially covered by hairpins, it will be kept.
+
+    Parameters
+    ----------
+    insertion_sites : list of InsertionSite
+        List of `InsertionSite` objects representing potential insertion sites.
+    hairpins : list of Hairpin
+        List of `Hairpin` objects representing hairpin regions.
+
+    Returns
+    -------
+    list of InsertionSite
+        A filtered list of `InsertionSite` objects that are not fully covered
+        by any `Hairpin` objects.
+    """
+    filtered_sites = []
+
+    for site in insertion_sites:
+        site_covered = False
+        for hairpin in hairpins:
+            if hairpin.start <= site.start and hairpin.end >= site.end:
+                # Insertion site is fully covered by the hairpin
+                site_covered = True
+                break
+        if not site_covered:
+            filtered_sites.append(site)
 
     return filtered_sites
