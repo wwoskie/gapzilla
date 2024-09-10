@@ -1,4 +1,5 @@
 __pycache__
+.~lock.tsv_template.tsv#
 example.ipynb
 gapzilla.zip
 conda-build.zip

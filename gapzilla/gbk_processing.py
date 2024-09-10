@@ -20,7 +20,10 @@ from gapzilla.feature_processing import (
     create_insertion_sites_feature,
     create_uncovered_intervals_feature,
 )
-from gapzilla.hairpin_processing import find_hairpins_in_subseqs
+from gapzilla.hairpin_processing import (
+    find_hairpins_in_subseqs,
+    merge_overlapping_hairpins,
+)
 from gapzilla.models import IntervaledFeature
 from gapzilla.interval_processing import (
     merge_intervals,
@@ -175,6 +178,12 @@ def process_gbk(
 
         filtered_intervals = filter_intervals_by_strand_direction(filtered_intervals)
 
+        logging.info(f"Total # of gaps: {len(filtered_intervals)}")
+
+        if len(filtered_intervals) == 0:
+            logging.info(f"Nothing to proceed in {record.name}")
+            continue
+
         sequence = Seq(record.seq)
 
         logging.info("Annotating RNA hairpins...")
@@ -182,7 +191,7 @@ def process_gbk(
             str(sequence.transcribe()), filtered_intervals, border_shift
         )
         # Finding hairpins
-        logging.info(f"Total # of gaps: {len(subsequences)}")
+
         logging.info("Processing forward strand...")
         top_hairpins_f, all_hairpins_f = find_hairpins_in_subseqs(
             subsequences,
@@ -214,7 +223,8 @@ def process_gbk(
             insertion_sites_overlapping
         )
         insertion_sites_overlapping = filter_insertion_sites_by_hairpins(
-            insertion_sites_overlapping, all_hairpins_f + all_hairpins_r
+            insertion_sites_overlapping,
+            merge_overlapping_hairpins(all_hairpins_f + all_hairpins_r),
         )
 
         # Handle what to plot

@@ -367,3 +367,40 @@ def find_hairpins_in_subseqs(
     )
 
     return top_hairpins, all_hairpins
+
+
+def merge_overlapping_hairpins(hairpins: list[Hairpin]) -> list[Hairpin]:
+    """
+    Merge overlapping hairpins into a single hairpin.
+
+    This function takes a list of Hairpin objects and merges any that overlap
+    (i.e., if the `end` of one hairpin is greater than or equal to the `start`
+    of the next hairpin, they are considered overlapping). The merged hairpin
+    will have the lowest start and the highest end among the overlapping ones.
+
+    Parameters
+    ----------
+    hairpins : list[Hairpin]
+        A list of Hairpin objects with `.start` and `.end` attributes.
+
+    Returns
+    -------
+    list[Hairpin]
+        A list of Hairpin objects with overlapping hairpins merged.
+    """
+
+    # Sort hairpins based on the start position
+    sorted_hairpins = sorted(hairpins, key=lambda x: x.start)
+    merged_hairpins = [sorted_hairpins[0]]
+
+    for current in sorted_hairpins[1:]:
+        last_merged = merged_hairpins[-1]
+
+        if current.start <= last_merged.end:
+            # Overlapping, merge intervals
+            last_merged.end = max(last_merged.end, current.end)
+        else:
+            # No overlap, add to result
+            merged_hairpins.append(current)
+
+    return merged_hairpins
