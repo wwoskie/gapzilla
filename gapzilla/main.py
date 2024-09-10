@@ -195,50 +195,55 @@ def main() -> None:
 
     # Process every config provided
     for indx, custom_config in enumerate(list_of_configs):
-        if len(list_of_configs) > 1:
-            if indx == 0:
-                setup_logging(args.verbosity)
-                logging.info(
-                    f"Processing multiple files, total #: {len(list_of_configs)}"
-                )
-            logging.info(f"Processing file # {indx+1}: {custom_config["path_to_gbk"]}")
+        try:
+            if len(list_of_configs) > 1:
+                if indx == 0:
+                    setup_logging(args.verbosity)
+                    logging.info(
+                        f"Processing multiple files, total #: {len(list_of_configs)}"
+                    )
+                logging.info(f"Processing file # {indx+1}: {custom_config["path_to_gbk"]}")
 
-        # Set all necessary variables in a dict, if available, take from custom config, else use from args (defaults if other not provided)
-        param_dict = {
-            "path_to_gbk": custom_config.get("path_to_gbk", args.path_to_gbk),
-            "output_file_name": custom_config.get(
-                "output_file_name", args.output_file_name
-            ),
-            "path_to_output_folder": custom_config.get(
-                "path_to_output_folder", args.path_to_output_folder
-            ),
-            "suffix_file_name": custom_config.get(
-                "suffix_file_name", args.suffix_file_name
-            ),
-            "min_gap_length": custom_config.get("min_gap_length", args.min_gap_length),
-            "max_gap_length": custom_config.get("max_gap_length", args.max_gap_length),
-            "min_flanks_length": custom_config.get(
-                "min_flanks_length", args.min_flanks_length
-            ),
-            "max_flanks_length": custom_config.get(
-                "max_flanks_length", args.max_flanks_length
-            ),
-            "mfe_threshold_hpa": custom_config.get(
-                "mfe_threshold_hpt", args.mfe_threshold_hpa
-            ),
-            "mfe_threshold_hpt": custom_config.get(
-                "mfe_threshold_hpa", args.mfe_threshold_hpt
-            ),
-            "hairpin_similarity_thres": custom_config.get(
-                "hairpin_similarity_thres", args.hairpin_similarity_thres
-            ),
-            "border_shift": custom_config.get("border_shift", args.border_shift),
-            "num_processes": custom_config.get("num_processes", args.threads),
-            "verbosity": custom_config.get("verbosity", args.verbosity),
-            "avoid_plotting": custom_config.get("avoid_plotting", args.avoid_plotting),
-        }
+            # Set all necessary variables in a dict, if available, take from custom config, else use from args (defaults if other not provided)
+            param_dict = {
+                "path_to_gbk": custom_config.get("path_to_gbk", args.path_to_gbk),
+                "output_file_name": custom_config.get(
+                    "output_file_name", args.output_file_name
+                ),
+                "path_to_output_folder": custom_config.get(
+                    "path_to_output_folder", args.path_to_output_folder
+                ),
+                "suffix_file_name": custom_config.get(
+                    "suffix_file_name", args.suffix_file_name
+                ),
+                "min_gap_length": custom_config.get("min_gap_length", args.min_gap_length),
+                "max_gap_length": custom_config.get("max_gap_length", args.max_gap_length),
+                "min_flanks_length": custom_config.get(
+                    "min_flanks_length", args.min_flanks_length
+                ),
+                "max_flanks_length": custom_config.get(
+                    "max_flanks_length", args.max_flanks_length
+                ),
+                "mfe_threshold_hpa": custom_config.get(
+                    "mfe_threshold_hpt", args.mfe_threshold_hpa
+                ),
+                "mfe_threshold_hpt": custom_config.get(
+                    "mfe_threshold_hpa", args.mfe_threshold_hpt
+                ),
+                "hairpin_similarity_thres": custom_config.get(
+                    "hairpin_similarity_thres", args.hairpin_similarity_thres
+                ),
+                "border_shift": custom_config.get("border_shift", args.border_shift),
+                "num_processes": custom_config.get("num_processes", args.threads),
+                "verbosity": custom_config.get("verbosity", args.verbosity),
+                "avoid_plotting": custom_config.get("avoid_plotting", args.avoid_plotting),
+            }
 
-        process_gbk(**param_dict)
+            process_gbk(**param_dict)
+
+        except Exception as error:
+            logging.exception(f'An exception occurred: {error}')
+            continue
 
 
 if __name__ == "__main__":
