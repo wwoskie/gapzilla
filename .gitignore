@@ -7,4 +7,3 @@ data/
 gapzilla.egg-info/
 build/
 conda-build/
-docs/
