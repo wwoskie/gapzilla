@@ -17,11 +17,13 @@ Make sure you have your conda installed, conda env created and activated
         ├── gapzilla
         ├── pyproject.toml
         ├── README.md
-        └── requirements.txt
+        ├── requirements.txt
+        └── tsv_template.tsv
+
         ```
     - Run the following command:
         ```bash
-        conda install gapzilla -c ./conda-build   
+        conda install -c ./conda-build gapzilla
         ```
 
 
@@ -51,7 +53,7 @@ Make sure you have your conda installed, conda env created and activated
         ```
         or, if you provided custom path on previous step:
         ```bash
-        conda install -c ./conda-build gapzilla    
+        conda install -c path/to/output/folder gapzilla
         ```
 ## **2. `pip`**
 
@@ -180,7 +182,7 @@ Script outputs a `.gbk` file with additional annotations that include:
 - `hpa`: all other hairpins detected that do not match stability criteria
 - `ins{n}`: possible insertion sites, where `n` is a score from 1 to 4. Score 4 can only be achieved when site is surrounded by 4 stable hairpins (`hpt`s): two on the left (forward and reverse) and two on the right.
 
-Output can be opened by any tool that allows view of `.gbk` files like ugene or SnapGene.
+Output can be opened by any tool that allows view of `.gbk` files like UGENE or SnapGene.
 
 # **Requirements**
 ```

@@ -94,13 +94,14 @@ gapzilla    </h1>
 ├──<span class="w"> </span>gapzilla
 ├──<span class="w"> </span>pyproject.toml
 ├──<span class="w"> </span>README.md
-└──<span class="w"> </span>requirements.txt
+├──<span class="w"> </span>requirements.txt
+└──<span class="w"> </span>tsv_template.tsv
 </code></pre>
 </div></li>
 <li><p>Run the following command:</p>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code>conda<span class="w"> </span>install<span class="w"> </span>gapzilla<span class="w"> </span>-c<span class="w"> </span>./conda-build<span class="w">   </span>
+<pre><span></span><code>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>./conda-build<span class="w"> </span>gapzilla
 </code></pre>
 </div></li>
 </ul></li>
@@ -146,7 +147,7 @@ gapzilla    </h1>
 <p>or, if you provided custom path on previous step:</p>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>./conda-build<span class="w"> </span>gapzilla<span class="w">    </span>
+<pre><span></span><code>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>path/to/output/folder<span class="w"> </span>gapzilla
 </code></pre>
 </div></li>
 </ul></li>
@@ -327,7 +328,7 @@ options:
 <li><code>ins{n}</code>: possible insertion sites, where <code>n</code> is a score from 1 to 4. Score 4 can only be achieved when site is surrounded by 4 stable hairpins (<code>hpt</code>s): two on the left (forward and reverse) and two on the right.</li>
 </ul>
 
-<p>Output can be opened by any tool that allows view of <code>.gbk</code> files like ugene or SnapGene.</p>
+<p>Output can be opened by any tool that allows view of <code>.gbk</code> files like UGENE or SnapGene.</p>
 
 <h1 id="requirements"><strong>Requirements</strong></h1>
 

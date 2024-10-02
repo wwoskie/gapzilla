@@ -8,7 +8,7 @@ version = "1.0.2"
 authors = [{name="Aleksandr Voskoboinikov", email="wwoskie@gmail.com" }]
 description = "A simple module to process a GenBank (gbk) file, identify and annotate RNA hairpins and insertion sites"
 readme = "README.md"
-dependencies = ["biopython","pyyaml", "tqdm", "viennarna", "pandas]
+dependencies = ["biopython","pyyaml", "tqdm", "viennarna", "pandas"]
 requires-python = ">=3.10"
 
 [project.scripts]
